@@ -1,0 +1,21 @@
+{
+  "name": "ack-policy",
+  "version": "0.0.1",
+  "description": "Policy engine for Agent Commerce Kit — enforce spend limits, category rules, recipient allowlists, and time windows on agent payments",
+  "homepage": "https://github.com/ak68a/ack-policy#readme",
+  "bugs": "https://github.com/ak68a/ack-policy/issues",
+  "license": "MIT",
+  "author": "ak68a",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ak68a/ack-policy.git"
+  },
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "test": "echo 'no tests yet'"
+  },
+  "dependencies": {
+    "agentcommercekit": "0.11.0"
+  }
+}
