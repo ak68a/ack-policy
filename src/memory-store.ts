@@ -9,6 +9,7 @@ interface Reservation {
   key: string
   amount: bigint
   committed: boolean
+  windowStart: number
 }
 
 export function createMemoryStore(): PolicyStore {
@@ -51,7 +52,7 @@ export function createMemoryStore(): PolicyStore {
       }
 
       window.total += amount
-      reservations.set(idempotencyKey, { key, amount, committed: false })
+      reservations.set(idempotencyKey, { key, amount, committed: false, windowStart: window.windowStart })
 
       return {
         allowed: true,
@@ -74,7 +75,7 @@ export function createMemoryStore(): PolicyStore {
       }
 
       const window = windows.get(reservation.key)
-      if (window) {
+      if (window && window.windowStart === reservation.windowStart) {
         window.total -= reservation.amount
         if (window.total < 0n) {
           window.total = 0n

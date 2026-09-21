@@ -469,6 +469,47 @@ describe("evaluate", () => {
     })
   })
 
+  describe("budget — window expiry", () => {
+    it("resets budget when the window expires", async () => {
+      const policy = definePolicy({
+        maxAmount: { USDC: 10_000_000n },
+        recipients: { allow: [baseOption.recipient] },
+        budget: {
+          windowMs: 100,
+          maxAmount: { USDC: 15_000_000n },
+        },
+      })
+      const store = createMemoryStore()
+
+      const first = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 10_000_000 },
+        agentDid: "did:web:agent.com",
+        store,
+        requestId: "w-1",
+      })
+      expect(first.status).toBe("approved")
+
+      const overBudget = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 10_000_000 },
+        agentDid: "did:web:agent.com",
+        store,
+        requestId: "w-2",
+      })
+      expect(overBudget.status).toBe("denied")
+
+      // Wait for window to expire
+      await new Promise((r) => setTimeout(r, 150))
+
+      const afterExpiry = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 10_000_000 },
+        agentDid: "did:web:agent.com",
+        store,
+        requestId: "w-3",
+      })
+      expect(afterExpiry.status).toBe("approved")
+    })
+  })
+
   describe("budget — split attack resistance", () => {
     it("allows exactly the right number of concurrent payments", async () => {
       const policy = definePolicy({
