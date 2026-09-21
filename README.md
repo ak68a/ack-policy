@@ -2,12 +2,9 @@
 
 When an AI agent spends money on your behalf, something needs to say "no" before the money moves. ack-policy is that gate.
 
-```
-Payment Request → parse options → evaluate policy → sign/execute → receipt
-                                   ↑ ack-policy
-```
-
 A policy engine for [Agent Commerce Kit](https://github.com/agentcommercekit/ack) that enforces spend limits, recipient rules, and rolling budgets on agent payments — before they execute.
+
+![ack-policy flow diagram](./assets/ack-policy-flow.png)
 
 ## Why
 

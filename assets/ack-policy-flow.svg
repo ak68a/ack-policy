@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 520" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+
+  <!-- Arrow markers -->
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#9e9e9e"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4caf50"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f44336"/>
+    </marker>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ff9800"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="520" fill="#fafafa" rx="12"/>
+
+  <!-- Title -->
+  <text x="500" y="42" text-anchor="middle" font-size="18" font-weight="600" fill="#1a1a2e">Agent Payment Flow with ack-policy</text>
+
+  <!-- Payment Request -->
+  <rect x="40" y="80" width="160" height="64" rx="10" fill="#e8eaf6" stroke="#7986cb" stroke-width="1.5"/>
+  <text x="120" y="108" text-anchor="middle" font-size="13" font-weight="600" fill="#283593">Payment</text>
+  <text x="120" y="126" text-anchor="middle" font-size="13" font-weight="600" fill="#283593">Request</text>
+
+  <!-- Arrow 1 -->
+  <line x1="200" y1="112" x2="255" y2="112" stroke="#9e9e9e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Parse Options -->
+  <rect x="260" y="80" width="140" height="64" rx="10" fill="#e8eaf6" stroke="#7986cb" stroke-width="1.5"/>
+  <text x="330" y="108" text-anchor="middle" font-size="13" font-weight="600" fill="#283593">Parse</text>
+  <text x="330" y="126" text-anchor="middle" font-size="13" font-weight="600" fill="#283593">Options</text>
+
+  <!-- Arrow 2 -->
+  <line x1="400" y1="112" x2="435" y2="112" stroke="#9e9e9e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- ack-policy (the diamond decision point) -->
+  <polygon points="550,52 660,112 550,172 440,112" fill="#fff3e0" stroke="#ff9800" stroke-width="2"/>
+  <text x="550" y="106" text-anchor="middle" font-size="14" font-weight="700" fill="#e65100">ack-policy</text>
+  <text x="550" y="124" text-anchor="middle" font-size="11" fill="#bf360c">evaluate()</text>
+
+  <!-- APPROVED path (right) -->
+  <line x1="660" y1="112" x2="735" y2="112" stroke="#4caf50" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <text x="698" y="102" text-anchor="middle" font-size="10" font-weight="600" fill="#2e7d32">approved</text>
+
+  <!-- Execute Payment -->
+  <rect x="740" y="80" width="140" height="64" rx="10" fill="#e8f5e9" stroke="#66bb6a" stroke-width="1.5"/>
+  <text x="810" y="108" text-anchor="middle" font-size="13" font-weight="600" fill="#1b5e20">Execute</text>
+  <text x="810" y="126" text-anchor="middle" font-size="13" font-weight="600" fill="#1b5e20">Payment</text>
+
+  <!-- Arrow to receipt -->
+  <line x1="880" y1="112" x2="915" y2="112" stroke="#9e9e9e" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="930" y="117" text-anchor="start" font-size="12" fill="#616161">Receipt</text>
+
+  <!-- DENIED path (down-right) -->
+  <line x1="605" y1="152" x2="675" y2="225" stroke="#f44336" stroke-width="2" marker-end="url(#arrowRed)"/>
+  <text x="660" y="186" text-anchor="middle" font-size="10" font-weight="600" fill="#c62828">denied</text>
+
+  <!-- Blocked -->
+  <rect x="680" y="220" width="200" height="64" rx="10" fill="#ffebee" stroke="#ef5350" stroke-width="1.5"/>
+  <text x="780" y="248" text-anchor="middle" font-size="13" font-weight="600" fill="#b71c1c">Blocked</text>
+  <text x="780" y="266" text-anchor="middle" font-size="11" fill="#c62828">amount / currency / budget</text>
+
+  <!-- APPROVAL REQUIRED path (down-left) -->
+  <line x1="495" y1="152" x2="415" y2="225" stroke="#ff9800" stroke-width="2" marker-end="url(#arrowOrange)"/>
+  <text x="430" y="186" text-anchor="middle" font-size="10" font-weight="600" fill="#e65100">approval_required</text>
+
+  <!-- Ask Human -->
+  <rect x="260" y="220" width="200" height="64" rx="10" fill="#fff8e1" stroke="#ffb74d" stroke-width="1.5"/>
+  <text x="360" y="248" text-anchor="middle" font-size="13" font-weight="600" fill="#e65100">Ask Human</text>
+  <text x="360" y="266" text-anchor="middle" font-size="11" fill="#f57c00">unknown recipient</text>
+
+  <!-- Human approve arrow back up -->
+  <path d="M 460 252 Q 530 252 530 195 Q 530 145 555 145" fill="none" stroke="#4caf50" stroke-width="1.5" stroke-dasharray="6,3" marker-end="url(#arrowGreen)"/>
+  <text x="540" y="218" text-anchor="middle" font-size="9" fill="#2e7d32">human</text>
+  <text x="540" y="230" text-anchor="middle" font-size="9" fill="#2e7d32">approves</text>
+
+  <!-- Divider -->
+  <line x1="40" y1="340" x2="960" y2="340" stroke="#e0e0e0" stroke-width="1"/>
+
+  <!-- Three Layers title -->
+  <text x="500" y="374" text-anchor="middle" font-size="15" font-weight="600" fill="#1a1a2e">Three Layers of Agent Payment Safety</text>
+
+  <!-- Layer 1: Authorization -->
+  <rect x="40" y="400" width="270" height="80" rx="10" fill="#e3f2fd" stroke="#64b5f6" stroke-width="1.5"/>
+  <text x="175" y="428" text-anchor="middle" font-size="13" font-weight="700" fill="#1565c0">Authorization</text>
+  <text x="175" y="448" text-anchor="middle" font-size="11" fill="#1976d2">ACK Grants</text>
+  <text x="175" y="466" text-anchor="middle" font-size="10" fill="#42a5f5" font-style="italic">what the agent may do</text>
+
+  <!-- Arrow -->
+  <line x1="310" y1="440" x2="340" y2="440" stroke="#9e9e9e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Layer 2: Enforcement -->
+  <rect x="345" y="400" width="270" height="80" rx="10" fill="#fff3e0" stroke="#ff9800" stroke-width="2"/>
+  <text x="480" y="428" text-anchor="middle" font-size="13" font-weight="700" fill="#e65100">Enforcement</text>
+  <text x="480" y="448" text-anchor="middle" font-size="11" font-weight="600" fill="#ef6c00">ack-policy</text>
+  <text x="480" y="466" text-anchor="middle" font-size="10" fill="#ff9800" font-style="italic">what the agent shouldn't do</text>
+
+  <!-- Arrow -->
+  <line x1="615" y1="440" x2="645" y2="440" stroke="#9e9e9e" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Layer 3: Evidence -->
+  <rect x="650" y="400" width="270" height="80" rx="10" fill="#fce4ec" stroke="#ef5350" stroke-width="1.5"/>
+  <text x="785" y="428" text-anchor="middle" font-size="13" font-weight="700" fill="#c62828">Evidence</text>
+  <text x="785" y="448" text-anchor="middle" font-size="11" fill="#d32f2f">Dispute Resolution</text>
+  <text x="785" y="466" text-anchor="middle" font-size="10" fill="#ef5350" font-style="italic">what the agent did do</text>
+
+</svg>
