@@ -73,6 +73,12 @@ export async function evaluate(policy: Policy, options: EvaluateOptions): Promis
         reason: "agentDid is required for budget evaluation",
       }
     }
+    if (!options.requestId) {
+      return {
+        status: "denied",
+        reason: "requestId is required for budget evaluation",
+      }
+    }
 
     const budgetLimit = policy.budget.maxAmount.get(paymentOption.currency)
     if (budgetLimit === undefined) {
@@ -80,9 +86,7 @@ export async function evaluate(policy: Policy, options: EvaluateOptions): Promis
     }
 
     const key = `${options.agentDid}:${paymentOption.currency}`
-    const idempotencyKey = options.requestId
-      ? `${options.requestId}:${paymentOption.currency}`
-      : `${Date.now()}:${Math.random()}`
+    const idempotencyKey = `${options.requestId}:${paymentOption.currency}`
 
     const result = await options.store.checkAndReserve({
       key,

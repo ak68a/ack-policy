@@ -134,7 +134,7 @@ interface EvaluateOptions {
 | `paymentOption` | `PaymentOption` | Yes | A payment option from an ACK payment request. Uses the `amount`, `currency`, and `recipient` fields. |
 | `agentDid` | `string` | When budget | The agent's DID. Used to isolate budget tracking per agent. |
 | `store` | `PolicyStore` | When budget | Storage adapter for cumulative budget tracking. |
-| `requestId` | `string` | No | Idempotency key. Same `requestId` won't double-count against the budget. The store key is `${requestId}:${currency}`. |
+| `requestId` | `string` | When budget | Idempotency key. Same `requestId` won't double-count against the budget. The store key is `${requestId}:${currency}`. Replaying with a different amount is rejected. |
 
 `PaymentOption` is re-exported from `agentcommercekit`:
 

@@ -299,6 +299,7 @@ describe("evaluate", () => {
         paymentOption: { ...baseOption, amount: 5_000_000 },
         agentDid: "did:web:agent.com",
         store,
+        requestId: "req-1",
       })
       expect(decision).toEqual({ status: "approved" })
     })
@@ -430,11 +431,44 @@ describe("evaluate", () => {
       const decision = await evaluate(policy, {
         paymentOption: baseOption,
         store,
+        requestId: "req-1",
       })
       expect(decision).toEqual({
         status: "denied",
         reason: "agentDid is required for budget evaluation",
       })
+    })
+
+    it("denies when budget is configured but no requestId provided", async () => {
+      const store = createMemoryStore()
+      const decision = await evaluate(policy, {
+        paymentOption: baseOption,
+        store,
+        agentDid: "did:web:agent.com",
+      })
+      expect(decision).toEqual({
+        status: "denied",
+        reason: "requestId is required for budget evaluation",
+      })
+    })
+
+    it("rejects idempotent replay with mismatched amount", async () => {
+      const store = createMemoryStore()
+      const first = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 5_000_000 },
+        agentDid: "did:web:agent.com",
+        store,
+        requestId: "req-mismatch",
+      })
+      expect(first.status).toBe("approved")
+
+      const replayed = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 8_000_000 },
+        agentDid: "did:web:agent.com",
+        store,
+        requestId: "req-mismatch",
+      })
+      expect(replayed.status).toBe("denied")
     })
 
     it("approves when payment currency has no budget limit", async () => {
@@ -451,6 +485,7 @@ describe("evaluate", () => {
         paymentOption: { ...baseOption, amount: 500, currency: "USD", decimals: 2 },
         agentDid: "did:web:agent.com",
         store,
+        requestId: "req-usd-1",
       })
       expect(decision).toEqual({ status: "approved" })
     })
@@ -461,6 +496,7 @@ describe("evaluate", () => {
         paymentOption: { ...baseOption, amount: 10_000_001 },
         agentDid: "did:web:agent.com",
         store,
+        requestId: "req-over",
       })
       expect(decision).toEqual({
         status: "denied",

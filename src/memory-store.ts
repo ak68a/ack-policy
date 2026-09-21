@@ -32,6 +32,13 @@ export function createMemoryStore(): PolicyStore {
 
       const existingReservation = reservations.get(idempotencyKey)
       if (existingReservation) {
+        if (existingReservation.key !== key || existingReservation.amount !== amount) {
+          return {
+            allowed: false,
+            currentTotal: 0n,
+            windowResetAt: new Date(0),
+          }
+        }
         const window = getOrCreateWindow(key, windowMs, Date.now())
         return {
           allowed: true,
