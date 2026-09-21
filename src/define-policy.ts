@@ -1,18 +1,7 @@
 import type { Policy, PolicyConfig } from "./types.js"
 
 export function definePolicy(config: PolicyConfig): Policy {
-  if (!config.maxAmount || Object.keys(config.maxAmount).length === 0) {
-    throw new Error("maxAmount must have at least one currency configured")
-  }
-
-  for (const [currency, limit] of Object.entries(config.maxAmount)) {
-    if (typeof limit !== "bigint") {
-      throw new Error(`maxAmount.${currency} must be a bigint`)
-    }
-    if (limit <= 0n) {
-      throw new Error(`maxAmount.${currency} must be positive`)
-    }
-  }
+  const maxAmount = validateAndBuildAmountMap(config.maxAmount, "maxAmount")
 
   if (config.recipients) {
     if ("allow" in config.recipients && "deny" in config.recipients &&
@@ -26,31 +15,8 @@ export function definePolicy(config: PolicyConfig): Policy {
     if (!config.budget.windowMs || config.budget.windowMs <= 0) {
       throw new Error("budget.windowMs must be a positive number")
     }
-    if (!config.budget.maxAmount || Object.keys(config.budget.maxAmount).length === 0) {
-      throw new Error("budget.maxAmount must have at least one currency configured")
-    }
-    for (const [currency, limit] of Object.entries(config.budget.maxAmount)) {
-      if (typeof limit !== "bigint") {
-        throw new Error(`budget.maxAmount.${currency} must be a bigint`)
-      }
-      if (limit <= 0n) {
-        throw new Error(`budget.maxAmount.${currency} must be positive`)
-      }
-    }
-    const budgetMaxAmount = new Map<string, bigint>()
-    for (const [currency, limit] of Object.entries(config.budget.maxAmount)) {
-      if (Object.prototype.hasOwnProperty.call(config.budget.maxAmount, currency)) {
-        budgetMaxAmount.set(currency, limit)
-      }
-    }
+    const budgetMaxAmount = validateAndBuildAmountMap(config.budget.maxAmount, "budget.maxAmount")
     budget = { windowMs: config.budget.windowMs, maxAmount: budgetMaxAmount }
-  }
-
-  const maxAmount = new Map<string, bigint>()
-  for (const [currency, limit] of Object.entries(config.maxAmount)) {
-    if (Object.prototype.hasOwnProperty.call(config.maxAmount, currency)) {
-      maxAmount.set(currency, limit)
-    }
   }
 
   return {
@@ -58,4 +24,30 @@ export function definePolicy(config: PolicyConfig): Policy {
     recipients: config.recipients ?? null,
     budget,
   }
+}
+
+function validateAndBuildAmountMap(
+  raw: Record<string, bigint>,
+  label: string,
+): Map<string, bigint> {
+  if (!raw || Object.keys(raw).length === 0) {
+    throw new Error(`${label} must have at least one currency configured`)
+  }
+
+  const map = new Map<string, bigint>()
+
+  for (const [currency, limit] of Object.entries(raw)) {
+    if (!Object.prototype.hasOwnProperty.call(raw, currency)) {
+      continue
+    }
+    if (typeof limit !== "bigint") {
+      throw new Error(`${label}.${currency} must be a bigint`)
+    }
+    if (limit <= 0n) {
+      throw new Error(`${label}.${currency} must be positive`)
+    }
+    map.set(currency, limit)
+  }
+
+  return map
 }

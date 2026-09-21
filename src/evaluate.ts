@@ -3,114 +3,112 @@ import type { EvaluateOptions, Policy, PolicyDecision } from "./types.js"
 export async function evaluate(policy: Policy, options: EvaluateOptions): Promise<PolicyDecision> {
   const { paymentOption } = options
 
-  let amount: bigint
-  try {
-    amount = BigInt(paymentOption.amount)
-  } catch {
-    return {
-      status: "denied",
-      reason: "Payment amount must be a valid integer in subunits",
-    }
+  const amount = parseAmount(paymentOption.amount)
+  if (amount === null) {
+    return denied("Payment amount must be a valid integer in subunits")
   }
 
   if (amount <= 0n) {
-    return {
-      status: "denied",
-      reason: "Payment amount must be greater than zero",
-    }
+    return denied("Payment amount must be greater than zero")
   }
 
   const limit = policy.maxAmount.get(paymentOption.currency)
   if (limit === undefined) {
-    return {
-      status: "denied",
-      reason: `No spend limit configured for currency ${paymentOption.currency}`,
-    }
+    return denied(`No spend limit configured for currency ${paymentOption.currency}`)
   }
 
   if (amount > limit) {
-    return {
-      status: "denied",
-      reason: "Payment amount exceeds the autonomous spend limit",
-    }
+    return denied("Payment amount exceeds the autonomous spend limit")
   }
 
-  if (policy.recipients) {
-    if ("deny" in policy.recipients && policy.recipients.deny) {
-      if (policy.recipients.deny.includes(paymentOption.recipient)) {
-        return {
-          status: "denied",
-          reason: "Recipient is on the deny list",
-        }
-      }
-    }
-
-    if ("allow" in policy.recipients && policy.recipients.allow) {
-      if (!policy.recipients.allow.includes(paymentOption.recipient)) {
-        return {
-          status: "approval_required",
-          reason: "Recipient is not on the autonomous payment allowlist",
-        }
-      }
-    }
-  } else {
-    return {
-      status: "approval_required",
-      reason: "No recipient rules configured",
-    }
+  const recipientDecision = checkRecipient(policy, paymentOption.recipient)
+  if (recipientDecision) {
+    return recipientDecision
   }
 
   if (policy.budget) {
-    if (!options.store) {
-      return {
-        status: "denied",
-        reason: "Policy has a budget but no store was provided",
-      }
-    }
-    if (!options.agentDid) {
-      return {
-        status: "denied",
-        reason: "agentDid is required for budget evaluation",
-      }
-    }
-    if (!options.requestId) {
-      return {
-        status: "denied",
-        reason: "requestId is required for budget evaluation",
-      }
-    }
-
-    const budgetLimit = policy.budget.maxAmount.get(paymentOption.currency)
-    if (budgetLimit === undefined) {
-      return { status: "approved" }
-    }
-
-    const key = `${options.agentDid}:${paymentOption.currency}`
-    const idempotencyKey = `${options.requestId}:${paymentOption.currency}`
-
-    let result
-    try {
-      result = await options.store.checkAndReserve({
-        key,
-        amount,
-        limit: budgetLimit,
-        windowMs: policy.budget.windowMs,
-        idempotencyKey,
-      })
-    } catch (err) {
-      return {
-        status: "denied",
-        reason: `Budget check failed: ${err instanceof Error ? err.message : "store error"}`,
-      }
-    }
-
-    if (!result.allowed) {
-      return {
-        status: "denied",
-        reason: `Budget exceeded: ${result.currentTotal} of ${budgetLimit} ${paymentOption.currency} used in current window`,
-      }
+    const budgetDecision = await checkBudget(policy.budget, options, amount)
+    if (budgetDecision) {
+      return budgetDecision
     }
   }
 
   return { status: "approved" }
+}
+
+function parseAmount(raw: number | string): bigint | null {
+  try {
+    return BigInt(raw)
+  } catch {
+    return null
+  }
+}
+
+function denied(reason: string): PolicyDecision {
+  return { status: "denied", reason }
+}
+
+function checkRecipient(policy: Policy, recipient: string): PolicyDecision | null {
+  if (!policy.recipients) {
+    return { status: "approval_required", reason: "No recipient rules configured" }
+  }
+
+  if ("deny" in policy.recipients && policy.recipients.deny) {
+    if (policy.recipients.deny.includes(recipient)) {
+      return denied("Recipient is on the deny list")
+    }
+  }
+
+  if ("allow" in policy.recipients && policy.recipients.allow) {
+    if (!policy.recipients.allow.includes(recipient)) {
+      return { status: "approval_required", reason: "Recipient is not on the autonomous payment allowlist" }
+    }
+  }
+
+  return null
+}
+
+async function checkBudget(
+  budget: NonNullable<Policy["budget"]>,
+  options: EvaluateOptions,
+  amount: bigint,
+): Promise<PolicyDecision | null> {
+  if (!options.store) {
+    return denied("Policy has a budget but no store was provided")
+  }
+  if (!options.agentDid) {
+    return denied("agentDid is required for budget evaluation")
+  }
+  if (!options.requestId) {
+    return denied("requestId is required for budget evaluation")
+  }
+
+  const budgetLimit = budget.maxAmount.get(options.paymentOption.currency)
+  if (budgetLimit === undefined) {
+    return null
+  }
+
+  const key = `${options.agentDid}:${options.paymentOption.currency}`
+  const idempotencyKey = `${options.requestId}:${options.paymentOption.currency}`
+
+  let result
+  try {
+    result = await options.store.checkAndReserve({
+      key,
+      amount,
+      limit: budgetLimit,
+      windowMs: budget.windowMs,
+      idempotencyKey,
+    })
+  } catch (err) {
+    return denied(`Budget check failed: ${err instanceof Error ? err.message : "store error"}`)
+  }
+
+  if (!result.allowed) {
+    return denied(
+      `Budget exceeded: ${result.currentTotal} of ${budgetLimit} ${options.paymentOption.currency} used in current window`,
+    )
+  }
+
+  return null
 }
