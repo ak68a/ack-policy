@@ -1,7 +1,7 @@
 {
   "name": "ack-policy",
-  "version": "0.0.1",
-  "description": "Policy engine for Agent Commerce Kit — enforce spend limits, category rules, recipient allowlists, and time windows on agent payments",
+  "version": "0.1.0",
+  "description": "Policy engine for Agent Commerce Kit — enforce spend limits, recipient rules, and rolling budgets on agent payments",
   "homepage": "https://github.com/ak68a/ack-policy#readme",
   "bugs": "https://github.com/ak68a/ack-policy/issues",
   "license": "MIT",
@@ -11,11 +11,31 @@
     "url": "git+https://github.com/ak68a/ack-policy.git"
   },
   "type": "module",
-  "main": "./src/index.ts",
-  "scripts": {
-    "test": "echo 'no tests yet'"
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
-  "dependencies": {
-    "agentcommercekit": "0.11.0"
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "tsc --noEmit && vitest run"
+  },
+  "peerDependencies": {
+    "agentcommercekit": ">=0.11.0"
+  },
+  "devDependencies": {
+    "agentcommercekit": "0.11.0",
+    "typescript": "5.7.3",
+    "vitest": "3.1.1"
   }
 }
