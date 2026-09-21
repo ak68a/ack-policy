@@ -134,7 +134,7 @@ const policy = definePolicy({
 
 async function handlePaymentRequest(request: PaymentRequest) {
   for (const option of request.paymentOptions) {
-    const decision = evaluate(policy, { paymentOption: option })
+    const decision = await evaluate(policy, { paymentOption: option })
 
     switch (decision.status) {
       case "approved":
@@ -159,8 +159,74 @@ async function handlePaymentRequest(request: PaymentRequest) {
 }
 ```
 
+## Rolling window budgets
+
+Per-transaction limits are necessary but not sufficient. An agent with a $5 per-transaction cap can make twenty $5 payments and spend $100. Rolling window budgets track cumulative spend over a time window and deny payments that would exceed the total.
+
+```typescript
+import { definePolicy, evaluate, createMemoryStore } from "ack-policy"
+
+const policy = definePolicy({
+  maxAmount: {
+    USDC: 10_000_000n,   // 10.00 USDC per transaction
+  },
+  recipients: {
+    allow: ["did:web:staples.com"],
+  },
+  budget: {
+    windowMs: 24 * 60 * 60 * 1000,   // 24-hour rolling window
+    maxAmount: {
+      USDC: 50_000_000n,              // 50.00 USDC per day cumulative
+    },
+  },
+})
+
+const store = createMemoryStore()
+```
+
+When a policy has a budget, `evaluate` requires two additional fields — `agentDid` (to isolate spend per agent) and `store` (to track cumulative totals):
+
+```typescript
+const decision = await evaluate(policy, {
+  paymentOption: option,
+  agentDid: "did:web:my-agent.com",
+  store,
+  requestId: paymentRequest.id,  // for idempotent re-evaluation
+})
+```
+
+### Handling payment success and failure
+
+The budget reserves the amount when evaluation returns `approved`. If the payment then fails, release the reservation so it doesn't permanently consume budget:
+
+```typescript
+const decision = await evaluate(policy, {
+  paymentOption: option,
+  agentDid: "did:web:my-agent.com",
+  store,
+  requestId: "req-123",
+})
+
+if (decision.status === "approved") {
+  try {
+    await executePayment(option)
+    await store.commit("req-123:USDC")  // payment succeeded, lock it in
+  } catch {
+    await store.release("req-123:USDC") // payment failed, free the budget
+  }
+}
+```
+
+The idempotency key for the store is `${requestId}:${currency}`. If you call `evaluate` again with the same `requestId`, the store returns the previous result without double-counting.
+
+### What `createMemoryStore` is for
+
+`createMemoryStore()` is an in-memory implementation of the `PolicyStore` interface. It works for single-instance agents and testing. It does not persist across process restarts.
+
+For production deployments that need persistence or multi-instance coordination, implement the `PolicyStore` interface against your database. The interface has three methods: `checkAndReserve`, `commit`, and `release`.
+
 ## What's next
 
 - **[API Reference](./api.md)** — full type definitions and function signatures
 - **[Architecture](./architecture.md)** — how ack-policy fits into the ACK ecosystem
-- Rolling window budgets and grant integration are coming in future releases — see the [roadmap](../ROADMAP.md)
+- Grant integration is coming once ACK v2 ships — see the roadmap

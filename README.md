@@ -41,7 +41,7 @@ const policy = definePolicy({
 })
 
 // paymentOption comes from an ACK PaymentRequest
-const decision = evaluate(policy, { paymentOption })
+const decision = await evaluate(policy, { paymentOption })
 
 if (decision.status === "approved") {
   // safe to execute the payment
@@ -60,18 +60,20 @@ if (decision.status === "denied") {
 
 ## Features
 
-### Available now (v0.1)
+### Available now (v0.2)
 
 - **Per-transaction amount limits** — per-currency caps in smallest subunits (bigint). A currency with no configured limit is denied.
 - **Recipient rules** — allowlist or denylist. Unknown recipients return `approval_required`, not `denied`, so a human can override.
 - **Currency allowlist** — unconfigured currencies are denied outright.
 - **Three-valued decisions** — `approved`, `approval_required`, or `denied`. Each non-approved decision includes a reason string.
+- **Rolling window budgets** — cumulative spend tracking over configurable time windows with atomic check-and-reserve to prevent split attacks. Per-agent, per-currency isolation.
+- **Pluggable storage** — `PolicyStore` interface with an in-memory implementation. Implement the interface for Redis, Postgres, or any persistent backend.
+- **Idempotent evaluation** — same `requestId` won't double-count against the budget.
+- **Reservation lifecycle** — commit on payment success, release on failure. Failed payments don't permanently consume budget.
 
 ### Planned
 
-- **Rolling window budgets** — cumulative spend tracking over configurable time windows (daily, weekly, monthly) with atomic check-and-reserve to prevent split attacks.
-- **Grant integration** — cross-check payments against ACK v2 grant claims (scope, audience, constraints, expiry).
-- **Pluggable storage** — in-memory for testing, Redis/SQLite/Postgres adapters for production.
+- **Grant integration** — cross-check payments against ACK v2 grant claims (scope, audience, constraints, expiry). Waiting on v2 landing in ACK core.
 
 See the roadmap in `.plans/` for the full plan.
 

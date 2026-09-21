@@ -15,7 +15,6 @@ const policy = definePolicy({
   },
 })
 
-// Simulate payment options from a merchant's payment request
 const paymentOptions = [
   {
     id: "opt-1",
@@ -43,19 +42,9 @@ const paymentOptions = [
 console.log("Policy evaluation results:\n")
 
 for (const option of paymentOptions) {
-  const decision = evaluate(policy, { paymentOption: option })
+  const decision = await evaluate(policy, { paymentOption: option })
 
   console.log(`  ${option.id} — ${option.amount} ${option.currency} to ${option.recipient}`)
   console.log(`    → ${decision.status}${"reason" in decision ? `: ${decision.reason}` : ""}`)
   console.log()
 }
-
-// Expected output:
-//   opt-1 — 3500000 USDC to did:web:staples.com
-//     → approved
-//
-//   opt-2 — 25000000 USDC to did:web:staples.com
-//     → denied: Payment amount exceeds the autonomous spend limit
-//
-//   opt-3 — 500 USD to did:web:unknown-vendor.com
-//     → approval_required: Recipient is not on the autonomous payment allowlist

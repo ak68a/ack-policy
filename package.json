@@ -1,6 +1,6 @@
 {
   "name": "ack-policy",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Policy engine for Agent Commerce Kit — enforce spend limits, recipient rules, and rolling budgets on agent payments",
   "homepage": "https://github.com/ak68a/ack-policy#readme",
   "bugs": "https://github.com/ak68a/ack-policy/issues",
