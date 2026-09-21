@@ -88,13 +88,21 @@ export async function evaluate(policy: Policy, options: EvaluateOptions): Promis
     const key = `${options.agentDid}:${paymentOption.currency}`
     const idempotencyKey = `${options.requestId}:${paymentOption.currency}`
 
-    const result = await options.store.checkAndReserve({
-      key,
-      amount,
-      limit: budgetLimit,
-      windowMs: policy.budget.windowMs,
-      idempotencyKey,
-    })
+    let result
+    try {
+      result = await options.store.checkAndReserve({
+        key,
+        amount,
+        limit: budgetLimit,
+        windowMs: policy.budget.windowMs,
+        idempotencyKey,
+      })
+    } catch (err) {
+      return {
+        status: "denied",
+        reason: `Budget check failed: ${err instanceof Error ? err.message : "store error"}`,
+      }
+    }
 
     if (!result.allowed) {
       return {

@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { definePolicy } from "./define-policy.js"
 import { evaluate } from "./evaluate.js"
 import { createMemoryStore } from "./memory-store.js"
+import type { PolicyStore } from "./types.js"
 
 const baseOption = {
   id: "opt-1",
@@ -507,11 +508,12 @@ describe("evaluate", () => {
 
   describe("budget — window expiry", () => {
     it("resets budget when the window expires", async () => {
+      vi.useFakeTimers()
       const policy = definePolicy({
         maxAmount: { USDC: 10_000_000n },
         recipients: { allow: [baseOption.recipient] },
         budget: {
-          windowMs: 100,
+          windowMs: 60_000,
           maxAmount: { USDC: 15_000_000n },
         },
       })
@@ -533,8 +535,7 @@ describe("evaluate", () => {
       })
       expect(overBudget.status).toBe("denied")
 
-      // Wait for window to expire
-      await new Promise((r) => setTimeout(r, 150))
+      vi.advanceTimersByTime(60_001)
 
       const afterExpiry = await evaluate(policy, {
         paymentOption: { ...baseOption, amount: 10_000_000 },
@@ -543,11 +544,13 @@ describe("evaluate", () => {
         requestId: "w-3",
       })
       expect(afterExpiry.status).toBe("approved")
+
+      vi.useRealTimers()
     })
   })
 
-  describe("budget — split attack resistance", () => {
-    it("allows exactly the right number of concurrent payments", async () => {
+  describe("budget — cumulative tracking (sequential)", () => {
+    it("tracks cumulative spend across sequential evaluations", async () => {
       const policy = definePolicy({
         maxAmount: { USDC: 5_000_000n },
         recipients: { allow: [baseOption.recipient] },
@@ -634,6 +637,192 @@ describe("evaluate", () => {
         requestId: "after-commit",
       })
       expect(decision.status).toBe("denied")
+    })
+  })
+
+  describe("budget — store errors", () => {
+    it("returns denied when the store throws", async () => {
+      const policy = definePolicy({
+        maxAmount: { USDC: 10_000_000n },
+        recipients: { allow: [baseOption.recipient] },
+        budget: {
+          windowMs: 60_000,
+          maxAmount: { USDC: 20_000_000n },
+        },
+      })
+      const failingStore: PolicyStore = {
+        async checkAndReserve() {
+          throw new Error("connection refused")
+        },
+        async commit() {},
+        async release() {},
+      }
+
+      const decision = await evaluate(policy, {
+        paymentOption: baseOption,
+        agentDid: "did:web:agent.com",
+        store: failingStore,
+        requestId: "req-1",
+      })
+      expect(decision).toEqual({
+        status: "denied",
+        reason: "Budget check failed: connection refused",
+      })
+    })
+
+    it("handles non-Error throws from the store", async () => {
+      const policy = definePolicy({
+        maxAmount: { USDC: 10_000_000n },
+        recipients: { allow: [baseOption.recipient] },
+        budget: {
+          windowMs: 60_000,
+          maxAmount: { USDC: 20_000_000n },
+        },
+      })
+      const failingStore: PolicyStore = {
+        async checkAndReserve() {
+          throw "something went wrong"
+        },
+        async commit() {},
+        async release() {},
+      }
+
+      const decision = await evaluate(policy, {
+        paymentOption: baseOption,
+        agentDid: "did:web:agent.com",
+        store: failingStore,
+        requestId: "req-1",
+      })
+      expect(decision).toEqual({
+        status: "denied",
+        reason: "Budget check failed: store error",
+      })
+    })
+  })
+
+  describe("budget — multi-option evaluation", () => {
+    it("evaluating different options with different requestIds tracks independently", async () => {
+      const policy = definePolicy({
+        maxAmount: { USDC: 10_000_000n },
+        recipients: { allow: [baseOption.recipient] },
+        budget: {
+          windowMs: 60_000,
+          maxAmount: { USDC: 15_000_000n },
+        },
+      })
+      const store = createMemoryStore()
+
+      const optionA = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 8_000_000 },
+        agentDid: "did:web:agent.com",
+        store,
+        requestId: "req-1:opt-a",
+      })
+      expect(optionA.status).toBe("approved")
+
+      const optionB = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 8_000_000 },
+        agentDid: "did:web:agent.com",
+        store,
+        requestId: "req-1:opt-b",
+      })
+      expect(optionB.status).toBe("denied")
+
+      await store.release("req-1:opt-a:USDC")
+
+      const optionBRetry = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 8_000_000 },
+        agentDid: "did:web:agent.com",
+        store,
+        requestId: "req-1:opt-b-retry",
+      })
+      expect(optionBRetry.status).toBe("approved")
+    })
+  })
+
+  describe("end-to-end lifecycle", () => {
+    it("tracks budget correctly across a realistic sequence of payments", async () => {
+      const policy = definePolicy({
+        maxAmount: { USDC: 10_000_000n },
+        recipients: {
+          allow: ["did:web:staples.com", "did:web:amazon.com"],
+        },
+        budget: {
+          windowMs: 60_000,
+          maxAmount: { USDC: 30_000_000n },
+        },
+      })
+      const store = createMemoryStore()
+      const agentDid = "did:web:office-agent.com"
+
+      const pay1 = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 8_000_000, recipient: "did:web:staples.com" },
+        agentDid,
+        store,
+        requestId: "order-1",
+      })
+      expect(pay1.status).toBe("approved")
+      await store.commit("order-1:USDC")
+
+      const pay2 = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 10_000_000, recipient: "did:web:amazon.com" },
+        agentDid,
+        store,
+        requestId: "order-2",
+      })
+      expect(pay2.status).toBe("approved")
+      await store.commit("order-2:USDC")
+
+      const pay3 = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 9_000_000, recipient: "did:web:staples.com" },
+        agentDid,
+        store,
+        requestId: "order-3",
+      })
+      expect(pay3.status).toBe("approved")
+
+      await store.release("order-3:USDC")
+
+      const pay3Retry = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 9_000_000, recipient: "did:web:staples.com" },
+        agentDid,
+        store,
+        requestId: "order-3-retry",
+      })
+      expect(pay3Retry.status).toBe("approved")
+      await store.commit("order-3-retry:USDC")
+
+      const pay4 = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 5_000_000, recipient: "did:web:staples.com" },
+        agentDid,
+        store,
+        requestId: "order-4",
+      })
+      expect(pay4.status).toBe("denied")
+      expect("reason" in pay4 && pay4.reason).toContain("Budget exceeded")
+    })
+  })
+
+  describe("real ACK PaymentOption type", () => {
+    it("works with a fully-typed PaymentOption from agentcommercekit", async () => {
+      const policy = definePolicy({
+        maxAmount: { USDC: 10_000_000n },
+        recipients: { allow: ["did:web:merchant.example.com"] },
+      })
+
+      const paymentOption = {
+        id: "po-1",
+        amount: 5_000_000,
+        decimals: 6,
+        currency: "USDC",
+        recipient: "did:web:merchant.example.com",
+        network: "base",
+        paymentService: "did:web:pay.example.com",
+        receiptService: "did:web:receipt.example.com",
+      }
+
+      const decision = await evaluate(policy, { paymentOption })
+      expect(decision).toEqual({ status: "approved" })
     })
   })
 })
