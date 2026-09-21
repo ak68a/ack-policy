@@ -1,19 +1,19 @@
 # ack-policy
 
-Policy engine for [Agent Commerce Kit](https://github.com/agentcommercekit/ack) — enforce spend limits, recipient rules, and rolling budgets on agent payments before they execute.
+When an AI agent spends money on your behalf, something needs to say "no" before the money moves. ack-policy is that gate.
 
 ```
 Payment Request → parse options → evaluate policy → sign/execute → receipt
                                    ↑ ack-policy
 ```
 
+A policy engine for [Agent Commerce Kit](https://github.com/agentcommercekit/ack) that enforces spend limits, recipient rules, and rolling budgets on agent payments — before they execute.
+
 ## Why
 
-When an AI agent makes payments on behalf of a user, something needs to answer: *is this payment within the scope the user authorized?*
+A per-transaction cap isn't enough. An agent with a $5 limit can make twenty $5 payments and spend $100. ACK's demo includes a [minimal policy check](https://github.com/agentcommercekit/ack/blob/main/demos/payments/src/payment-policy.ts) that does exactly this — per-transaction caps and a recipient allowlist. It works for a demo. It doesn't work for production.
 
-ACK's demo includes a [minimal policy check](https://github.com/agentcommercekit/ack/blob/main/demos/payments/src/payment-policy.ts) — per-transaction caps and a recipient allowlist. It's enough for a demo. It's not enough for production, because a per-transaction cap is trivially defeated by splitting one $500 payment into five $100 payments.
-
-ack-policy is the standalone, production-quality version. It handles the things the demo deliberately left out: cumulative budgets over rolling time windows, atomic check-and-reserve to prevent split attacks, currency-aware amount tracking in smallest subunits, and pluggable storage for persistent state.
+ack-policy adds what the demo left out: cumulative budgets over rolling time windows, atomic check-and-reserve to prevent split attacks, and a three-valued decision model that lets a human break the tie on edge cases instead of hard-blocking everything.
 
 ## Install
 
@@ -29,59 +29,75 @@ Peer dependency: [`agentcommercekit`](https://github.com/agentcommercekit/ack) f
 import { definePolicy, evaluate } from "ack-policy"
 
 const policy = definePolicy({
-  // Per-transaction limits in smallest subunits
   maxAmount: {
-    USDC: 5_000_000n,  // 5.00 USDC (6 decimals)
-    USD: 500n,          // 5.00 USD (2 decimals)
+    USDC: 5_000_000n,  // 5.00 USDC per transaction (6 decimals)
+    USD: 500n,          // 5.00 USD per transaction (2 decimals)
   },
-  // Only these recipients can be paid autonomously
   recipients: {
     allow: ["did:web:staples.com", "did:web:amazon.com"],
   },
 })
 
-// paymentOption comes from an ACK PaymentRequest
 const decision = await evaluate(policy, { paymentOption })
 
 if (decision.status === "approved") {
-  // safe to execute the payment
+  // safe to execute
 }
 
 if (decision.status === "approval_required") {
-  // ask the human — the payment is plausible but not pre-authorized
+  // recipient isn't pre-authorized — ask the human
   console.log(decision.reason)
 }
 
 if (decision.status === "denied") {
-  // hard stop — the payment violates a constraint
+  // hard constraint violated — do not execute
   console.log(decision.reason)
 }
 ```
 
+### With a rolling budget
+
+```typescript
+import { definePolicy, evaluate, createMemoryStore } from "ack-policy"
+
+const policy = definePolicy({
+  maxAmount: { USDC: 10_000_000n },
+  recipients: { allow: ["did:web:staples.com"] },
+  budget: {
+    windowMs: 24 * 60 * 60 * 1000,  // 24-hour rolling window
+    maxAmount: { USDC: 50_000_000n }, // 50 USDC per day cumulative
+  },
+})
+
+const store = createMemoryStore()
+
+const decision = await evaluate(policy, {
+  paymentOption,
+  agentDid: "did:web:my-agent.com",
+  store,
+  requestId: "order-123",
+})
+```
+
+The budget tracks cumulative spend per agent, per currency. Twenty $5 payments against a $50 daily limit — the first ten pass, the eleventh is denied.
+
 ## Features
 
-### Available now (v0.2)
+**Per-transaction checks** — per-currency amount limits in smallest subunits (bigint), recipient allowlists and denylists, currency allowlists, and three-valued decisions (`approved`, `approval_required`, `denied`).
 
-- **Per-transaction amount limits** — per-currency caps in smallest subunits (bigint). A currency with no configured limit is denied.
-- **Recipient rules** — allowlist or denylist. Unknown recipients return `approval_required`, not `denied`, so a human can override.
-- **Currency allowlist** — unconfigured currencies are denied outright.
-- **Three-valued decisions** — `approved`, `approval_required`, or `denied`. Each non-approved decision includes a reason string.
-- **Rolling window budgets** — cumulative spend tracking over configurable time windows with atomic check-and-reserve to prevent split attacks. Per-agent, per-currency isolation.
-- **Pluggable storage** — `PolicyStore` interface with an in-memory implementation. Implement the interface for Redis, Postgres, or any persistent backend.
-- **Idempotent evaluation** — same `requestId` won't double-count against the budget.
-- **Reservation lifecycle** — commit on payment success, release on failure. Failed payments don't permanently consume budget.
+**Rolling window budgets** — cumulative spend tracking over configurable time windows with atomic check-and-reserve to prevent split attacks. Per-agent, per-currency isolation. Idempotent evaluation via `requestId` — retries don't double-count. Commit on payment success, release on failure.
+
+**Pluggable storage** — `PolicyStore` interface with an in-memory implementation for testing. Implement the interface for Redis, Postgres, or any persistent backend.
 
 ### Planned
 
-- **Grant integration** — cross-check payments against ACK v2 grant claims (scope, audience, constraints, expiry). Waiting on v2 landing in ACK core.
-
-See the roadmap in `.plans/` for the full plan.
+**Grant integration** — cross-check payments against ACK v2 grant claims (scope, audience, constraints, expiry). Waiting on v2 landing in ACK core.
 
 ## Documentation
 
-- **[Getting Started](./docs/getting-started.md)** — install, define a policy, evaluate payments, handle decisions
+- **[Getting Started](./docs/getting-started.md)** — full walkthrough with budgets, commit/release lifecycle
 - **[API Reference](./docs/api.md)** — every exported function, type, and interface
-- **[Architecture](./docs/architecture.md)** — how ack-policy fits into the ACK ecosystem and why certain decisions were made
+- **[Architecture](./docs/architecture.md)** — where ack-policy sits in the ACK ecosystem and why certain decisions were made
 
 ## Relationship to ACK
 
