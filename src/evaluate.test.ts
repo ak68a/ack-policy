@@ -76,6 +76,40 @@ describe("evaluate", () => {
       })
     })
 
+    it("denies empty string amounts", () => {
+      const decision = evaluate(policy, {
+        paymentOption: { ...baseOption, amount: "" },
+      })
+      expect(decision.status).toBe("denied")
+    })
+
+    it("denies non-numeric string amounts", () => {
+      expect(
+        evaluate(policy, { paymentOption: { ...baseOption, amount: "abc" } }).status,
+      ).toBe("denied")
+      expect(
+        evaluate(policy, { paymentOption: { ...baseOption, amount: "NaN" } }).status,
+      ).toBe("denied")
+      expect(
+        evaluate(policy, { paymentOption: { ...baseOption, amount: "1e5" } }).status,
+      ).toBe("denied")
+    })
+
+    it("handles very large bigint amounts", () => {
+      const hugePolicy = definePolicy({
+        maxAmount: { ETH: 1_000_000_000_000_000_000n },
+        recipients: { allow: [baseOption.recipient] },
+      })
+      const decision = evaluate(hugePolicy, {
+        paymentOption: {
+          ...baseOption,
+          currency: "ETH",
+          amount: "999999999999999999",
+        },
+      })
+      expect(decision).toEqual({ status: "approved" })
+    })
+
     it("applies per-currency limits independently", () => {
       const usdDecision = evaluate(policy, {
         paymentOption: { ...baseOption, amount: 400, decimals: 2, currency: "USD" },
@@ -114,6 +148,16 @@ describe("evaluate", () => {
         reason: "No spend limit configured for currency constructor",
       })
     })
+
+    it("treats currency codes as case-sensitive", () => {
+      const decision = evaluate(policy, {
+        paymentOption: { ...baseOption, currency: "usdc" },
+      })
+      expect(decision).toEqual({
+        status: "denied",
+        reason: "No spend limit configured for currency usdc",
+      })
+    })
   })
 
   describe("recipient allowlist", () => {
@@ -136,6 +180,32 @@ describe("evaluate", () => {
         reason: "Recipient is not on the autonomous payment allowlist",
       })
     })
+
+    it("returns approval_required for all recipients when allowlist is empty", () => {
+      const emptyAllowPolicy = definePolicy({
+        maxAmount: { USDC: 5_000_000n },
+        recipients: { allow: [] },
+      })
+      const decision = evaluate(emptyAllowPolicy, { paymentOption: baseOption })
+      expect(decision).toEqual({
+        status: "approval_required",
+        reason: "Recipient is not on the autonomous payment allowlist",
+      })
+    })
+
+    it("treats recipient DIDs as case-sensitive", () => {
+      const decision = evaluate(policy, {
+        paymentOption: { ...baseOption, recipient: "did:web:Merchant.com" },
+      })
+      expect(decision.status).toBe("approval_required")
+    })
+
+    it("does not match empty string recipients", () => {
+      const decision = evaluate(policy, {
+        paymentOption: { ...baseOption, recipient: "" },
+      })
+      expect(decision.status).toBe("approval_required")
+    })
   })
 
   describe("recipient denylist", () => {
@@ -156,6 +226,15 @@ describe("evaluate", () => {
 
     it("approves non-blocked recipients", () => {
       const decision = evaluate(policy, { paymentOption: baseOption })
+      expect(decision).toEqual({ status: "approved" })
+    })
+
+    it("approves all recipients when denylist is empty", () => {
+      const emptyDenyPolicy = definePolicy({
+        maxAmount: { USDC: 5_000_000n },
+        recipients: { deny: [] },
+      })
+      const decision = evaluate(emptyDenyPolicy, { paymentOption: baseOption })
       expect(decision).toEqual({ status: "approved" })
     })
   })
