@@ -9,6 +9,7 @@ interface Reservation {
   key: string
   amount: bigint
   committed: boolean
+  released: boolean
   windowStart: number
 }
 
@@ -59,7 +60,7 @@ export function createMemoryStore(): PolicyStore {
       }
 
       window.total += amount
-      reservations.set(idempotencyKey, { key, amount, committed: false, windowStart: window.windowStart })
+      reservations.set(idempotencyKey, { key, amount, committed: false, released: false, windowStart: window.windowStart })
 
       return {
         allowed: true,
@@ -70,16 +71,18 @@ export function createMemoryStore(): PolicyStore {
 
     async commit(idempotencyKey: string): Promise<void> {
       const reservation = reservations.get(idempotencyKey)
-      if (reservation) {
+      if (reservation && !reservation.released) {
         reservation.committed = true
       }
     },
 
     async release(idempotencyKey: string): Promise<void> {
       const reservation = reservations.get(idempotencyKey)
-      if (!reservation || reservation.committed) {
+      if (!reservation || reservation.committed || reservation.released) {
         return
       }
+
+      reservation.released = true
 
       const window = windows.get(reservation.key)
       if (window && window.windowStart === reservation.windowStart) {
@@ -88,8 +91,6 @@ export function createMemoryStore(): PolicyStore {
           window.total = 0n
         }
       }
-
-      reservations.delete(idempotencyKey)
     },
   }
 }

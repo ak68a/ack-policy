@@ -609,6 +609,36 @@ describe("evaluate", () => {
       expect(decision.status).toBe("approved")
     })
 
+    it("does not commit released reservations", async () => {
+      const policy = definePolicy({
+        maxAmount: { USDC: 10_000_000n },
+        recipients: { allow: [baseOption.recipient] },
+        budget: {
+          windowMs: 60_000,
+          maxAmount: { USDC: 15_000_000n },
+        },
+      })
+      const store = createMemoryStore()
+
+      await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 10_000_000 },
+        agentDid: "did:web:agent.com",
+        store,
+        requestId: "released-first",
+      })
+
+      await store.release("released-first:USDC")
+      await store.commit("released-first:USDC")
+
+      const decision = await evaluate(policy, {
+        paymentOption: { ...baseOption, amount: 10_000_000 },
+        agentDid: "did:web:agent.com",
+        store,
+        requestId: "after-release",
+      })
+      expect(decision.status).toBe("approved")
+    })
+
     it("does not release committed reservations", async () => {
       const policy = definePolicy({
         maxAmount: { USDC: 10_000_000n },
